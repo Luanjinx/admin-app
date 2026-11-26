@@ -1,4 +1,4 @@
-package com.netspeed.isp_admin_app
+package com.netspeed.admin
 
 import io.flutter.embedding.android.FlutterActivity
 
