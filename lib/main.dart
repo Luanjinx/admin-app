@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:isp_admin_app/config/app_config.dart';
-import 'package:isp_admin_app/screens/login_screen.dart';
-import 'package:isp_admin_app/screens/main_nav_screen.dart';
-import 'package:isp_admin_app/services/admin_api_service.dart';
+import 'package:isp_admin_app/screens/splash_screen.dart';
 
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  await AdminApiService().init();
   runApp(const NetSpeedAdminApp());
 }
 
@@ -19,12 +16,7 @@ class NetSpeedAdminApp extends StatelessWidget {
       title: 'NetSpeed Admin',
       debugShowCheckedModeBanner: false,
       theme: AdminTheme.lightTheme,
-      home: ValueListenableBuilder<bool>(
-        valueListenable: AdminApiService().authState,
-        builder: (context, isAuth, _) {
-          return isAuth ? const MainNavScreen() : const LoginScreen();
-        },
-      ),
+      home: const AdminSplashScreen(),
     );
   }
 }

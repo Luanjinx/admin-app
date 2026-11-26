@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:isp_admin_app/config/app_config.dart';
 
@@ -193,5 +194,26 @@ Future<bool> confirmAdminDialog(
     ),
   );
   return res == true;
+}
+
+bool _isAdminExitDialogOpen = false;
+
+Future<void> confirmAdminAppExit(BuildContext context) async {
+  if (_isAdminExitDialogOpen || !context.mounted) return;
+  _isAdminExitDialogOpen = true;
+  try {
+    final confirmed = await confirmAdminDialog(
+      context,
+      title: 'Konfirmasi Keluar',
+      message: 'Apakah Anda yakin ingin keluar dari aplikasi NetSpeed Admin?',
+      confirmLabel: 'Keluar',
+      isDanger: true,
+    );
+    if (confirmed) {
+      await SystemNavigator.pop();
+    }
+  } finally {
+    _isAdminExitDialogOpen = false;
+  }
 }
 
