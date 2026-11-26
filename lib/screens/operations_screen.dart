@@ -17,6 +17,7 @@ class _OperationsScreenState extends State<OperationsScreen> with SingleTickerPr
 
   List<Map<String, dynamic>> _packageRequests = [];
   List<Map<String, dynamic>> _agents = [];
+  List<Map<String, dynamic>> _withdrawals = [];
   List<Map<String, dynamic>> _workOrders = [];
   List<Map<String, dynamic>> _tickets = [];
   List<Map<String, dynamic>> _technicians = [];
@@ -24,7 +25,7 @@ class _OperationsScreenState extends State<OperationsScreen> with SingleTickerPr
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
     _loadAll();
   }
 
@@ -39,6 +40,7 @@ class _OperationsScreenState extends State<OperationsScreen> with SingleTickerPr
     final res = await Future.wait([
       AdminApiService().get('/package-requests'),
       AdminApiService().get('/agents'),
+      AdminApiService().get('/agent-withdrawals'),
       AdminApiService().get('/work-orders'),
       AdminApiService().get('/tickets'),
       AdminApiService().get('/staff', query: {'role': 'technician'}),
@@ -47,11 +49,76 @@ class _OperationsScreenState extends State<OperationsScreen> with SingleTickerPr
     setState(() {
       _packageRequests = extractList(res[0]['data']);
       _agents = extractList(res[1]['data']);
-      _workOrders = extractList(res[2]['data']);
-      _tickets = extractList(res[3]['data']);
-      _technicians = extractList(res[4]['data']);
+      _withdrawals = extractList(res[2]['data']);
+      _workOrders = extractList(res[3]['data']);
+      _tickets = extractList(res[4]['data']);
+      _technicians = extractList(res[5]['data']);
       _loading = false;
     });
+  }
+
+  Future<void> _approveWithdrawalDialog(Map<String, dynamic> wd) async {
+    final refCtrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Setujui Tarik Saldo ${wd['withdrawal_code'] ?? ''}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Nominal: ${AdminConfig.rupiah(wd['amount'])}'),
+            const SizedBox(height: 10),
+            adminTextField(refCtrl, 'No. Referensi Transfer (Opsional)'),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Tandai Selesai')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final res = await AdminApiService().post('/agent-withdrawals/${wd['id']}/approve', body: {
+      'transfer_reference': refCtrl.text.trim(),
+    });
+    if (!mounted) return;
+    showAdminSnackBar(context, res['message']?.toString() ?? '', isError: res['success'] != true);
+    _loadAll();
+  }
+
+  Future<void> _rejectWithdrawalDialog(Map<String, dynamic> wd) async {
+    final reasonCtrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Tolak & Refund ${wd['withdrawal_code'] ?? ''}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Saldo ${AdminConfig.rupiah(wd['amount'])} akan dikembalikan ke agen.'),
+            const SizedBox(height: 10),
+            adminTextField(reasonCtrl, 'Alasan Penolakan'),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AdminColors.danger, foregroundColor: Colors.white),
+            child: const Text('Tolak & Refund'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || reasonCtrl.text.trim().isEmpty || !mounted) return;
+    final res = await AdminApiService().post('/agent-withdrawals/${wd['id']}/reject', body: {
+      'reason': reasonCtrl.text.trim(),
+    });
+    if (!mounted) return;
+    showAdminSnackBar(context, res['message']?.toString() ?? '', isError: res['success'] != true);
+    _loadAll();
   }
 
   Future<void> _approveAgentDialog(Map<String, dynamic> agent) async {
@@ -302,6 +369,7 @@ class _OperationsScreenState extends State<OperationsScreen> with SingleTickerPr
           tabs: const [
             Tab(text: 'Pengajuan Paket'),
             Tab(text: 'Mitra Agen'),
+            Tab(text: 'Tarik Saldo'),
             Tab(text: 'SPK Teknisi'),
             Tab(text: 'Tiket Bantuan'),
           ],
@@ -473,7 +541,72 @@ class _OperationsScreenState extends State<OperationsScreen> with SingleTickerPr
                         ),
                 ),
 
-                // 3. Work Orders
+                // 3. Agent Withdrawals
+                RefreshIndicator(
+                  onRefresh: _loadAll,
+                  child: _withdrawals.isEmpty
+                      ? adminEmptyState('Belum ada pengajuan tarik saldo agen.')
+                      : ListView.builder(
+                          padding: const EdgeInsets.all(14),
+                          itemCount: _withdrawals.length,
+                          itemBuilder: (_, idx) {
+                            final w = _withdrawals[idx];
+                            final st = w['status']?.toString() ?? 'pending';
+                            final isPending = st == 'pending';
+                            final target = w['method'] == 'cash'
+                                ? 'Tunai di Kantor'
+                                : '${w['bank_or_provider'] ?? ''} • ${w['account_number'] ?? ''} (${w['account_name'] ?? '-'})';
+                            return Card(
+                              margin: const EdgeInsets.only(bottom: 10),
+                              child: Padding(
+                                padding: const EdgeInsets.all(14),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text('${w['withdrawal_code'] ?? '-'} • ${AdminConfig.rupiah(w['amount'])}', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
+                                        adminBadge(st.toUpperCase(), color: statusColor(st)),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text('${w['agent']?['name'] ?? '-'} (${w['agent']?['agent_code'] ?? '-'})'),
+                                    Text(target, style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AdminColors.textMuted)),
+                                    if (w['transfer_reference'] != null)
+                                      Text('Ref: ${w['transfer_reference']}', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, color: AdminColors.success)),
+                                    if (w['rejection_reason'] != null)
+                                      Text('Alasan: ${w['rejection_reason']}', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, color: AdminColors.danger)),
+                                    if (isPending) ...[
+                                      const SizedBox(height: 10),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: ElevatedButton(
+                                              onPressed: () => _approveWithdrawalDialog(w),
+                                              style: ElevatedButton.styleFrom(backgroundColor: AdminColors.success, foregroundColor: Colors.white),
+                                              child: const Text('Setujui'),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: OutlinedButton(
+                                              onPressed: () => _rejectWithdrawalDialog(w),
+                                              child: const Text('Tolak & Refund', style: TextStyle(color: AdminColors.danger)),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+
+                // 4. Work Orders
                 RefreshIndicator(
                   onRefresh: _loadAll,
                   child: _workOrders.isEmpty

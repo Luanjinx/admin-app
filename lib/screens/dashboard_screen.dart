@@ -245,6 +245,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                         const Divider(height: 1),
                         _queueTile(
+                          'Pengajuan Tarik Saldo Agen',
+                          _overview['pending_agent_withdrawals'] ?? 0,
+                          Icons.account_balance_wallet_rounded,
+                          () => widget.onNavigateTab(4),
+                        ),
+                        const Divider(height: 1),
+                        _queueTile(
                           'Verifikasi Bukti Pembayaran',
                           _overview['pending_payments'] ?? 0,
                           Icons.payments_rounded,
