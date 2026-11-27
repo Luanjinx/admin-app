@@ -68,10 +68,13 @@ class AdminTheme {
 
 class AdminConfig {
   static String baseUrl = 'https://ryzprjkt.cloud';
+  static String oneSignalAppId = '';
   static const String apiPrefix = '/api';
   static const Duration timeoutDuration = Duration(seconds: 20);
 
   static String get apiBaseUrl => '$baseUrl$apiPrefix';
+  static String get publicAppConfigUrl => '$apiBaseUrl/public/app-config';
+  static String get oneSignalIdUrl => '$apiBaseUrl/auth/onesignal-id';
   static String get adminBaseUrl => '$apiBaseUrl/admin';
   static String get loginUrl => '$apiBaseUrl/auth/login';
   static String get logoutUrl => '$apiBaseUrl/auth/logout';

@@ -50,6 +50,7 @@ class _AdminSplashScreenState extends State<AdminSplashScreen>
 
     try {
       await AdminApiService().init();
+      await AdminApiService().fetchAndSyncAppConfig();
     } catch (_) {}
 
     final elapsed = stopwatch.elapsedMilliseconds;
